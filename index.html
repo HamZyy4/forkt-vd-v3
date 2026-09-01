@@ -2,183 +2,219 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>FORKT Engine - Luau UI Previewer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0f0f14;
+            background-color: #09090c;
             color: #e2e8f0;
+            overflow: hidden;
         }
 
         .code-editor {
             font-family: 'Fira Code', monospace;
-            background-color: #16161f;
+            background-color: #121218;
             resize: none;
             scrollbar-width: thin;
-            scrollbar-color: #2d2d3d transparent;
+            scrollbar-color: #2a2a3c transparent;
         }
 
-        /* Mockup Layar HP Portrait Mode */
-        .mobile-mockup {
-            width: 100%;
-            max-width: 360px;
-            aspect-ratio: 9/18.5;
-            background-color: #0d0d12;
-            margin: 0 auto;
-            border-radius: 2.5rem;
-            border: 8px solid #222230;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-            position: relative;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2a2a3c;
+            border-radius: 4px;
         }
 
-        .notch {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 110px;
-            height: 22px;
-            background-color: #222230;
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
-            z-index: 50;
+        /* Efek Glassmorphism & Glow */
+        .glass-panel {
+            background: rgba(18, 18, 24, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.07);
+        }
+
+        .glow-btn {
+            box-shadow: 0 4px 20px rgba(120, 80, 255, 0.35);
         }
     </style>
 </head>
-<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+<body class="h-dvh w-screen flex flex-col justify-between">
 
-    <div id="editor-section" class="w-full md:w-1/2 h-full flex flex-col border-r border-[#222230]">
-        <div class="p-4 bg-[#121219] flex justify-between items-center border-b border-[#222230] shadow-md">
-            <h1 class="text-base font-bold text-white flex items-center">
-                <i class="fa-solid fa-code text-[#7850ff] mr-2.5"></i> FORKT Engine Previewer
-            </h1>
-            <button onclick="parseAndPreview()" class="bg-[#7850ff] hover:bg-[#8c64ff] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg shadow-[#7850ff]/20 transition-all active:scale-95 flex items-center gap-2">
-                <i class="fa-solid fa-play"></i> Run Preview
+    <header class="h-14 bg-[#0e0e13] border-b border-[#1f1f2e] px-4 flex items-center justify-between z-30 shrink-0">
+        <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-[#7850ff] to-[#5030b5] flex items-center justify-center glow-btn">
+                <i class="fa-solid fa-terminal text-white text-xs"></i>
+            </div>
+            <div>
+                <h1 class="text-xs font-bold text-white tracking-wider">FORKT ENGINE</h1>
+                <p class="text-[9px] text-[#8a8a9e]">Luau UI Previewer v2.0</p>
+            </div>
+        </div>
+
+        <div class="flex bg-[#161622] p-1 rounded-xl border border-[#232336] md:hidden">
+            <button id="btn-tab-editor" onclick="switchMobileTab('editor')" class="px-3 py-1.5 rounded-lg text-[10px] font-bold bg-[#7850ff] text-white transition-all shadow-sm">
+                <i class="fa-solid fa-code mr-1"></i> Editor
+            </button>
+            <button id="btn-tab-preview" onclick="switchMobileTab('preview')" class="px-3 py-1.5 rounded-lg text-[10px] font-bold text-[#8a8a9e] transition-all">
+                <i class="fa-solid fa-eye mr-1"></i> Preview
             </button>
         </div>
+
+        <button onclick="runPreview()" class="hidden md:flex items-center gap-2 bg-[#7850ff] hover:bg-[#8c64ff] text-white px-4 py-2 rounded-xl text-xs font-bold glow-btn transition-all active:scale-95 cursor-pointer">
+            <i class="fa-solid fa-play"></i> Run Preview
+        </button>
+    </header>
+
+    <main class="flex-grow flex flex-col md:flex-row relative overflow-hidden">
         
-        <div class="flex-grow p-3 bg-[#0f0f14] relative">
-            <textarea id="luau-code" class="code-editor w-full h-full p-3 text-xs text-[#a78bfa] rounded-xl outline-none border border-[#222230] focus:border-[#7850ff] transition-colors shadow-inner" spellcheck="false">--[[
+        <section id="pane-editor" class="absolute inset-0 md:relative md:inset-auto w-full md:w-1/2 h-full flex flex-col bg-[#09090c] z-10 transition-opacity duration-200">
+            <div class="flex-grow p-3 md:p-4 flex flex-col">
+                <div class="flex items-center justify-between mb-2 px-1">
+                    <span class="text-[10px] font-bold uppercase tracking-widest text-[#8a8a9e]">Script Luau Source</span>
+                    <span class="text-[10px] font-mono text-[#7850ff]">Auto-Sync active</span>
+                </div>
+                <textarea id="luau-code" class="code-editor flex-grow w-full p-3 md:p-4 text-xs text-[#a78bfa] rounded-2xl outline-none border border-[#1f1f2e] focus:border-[#7850ff] transition-colors shadow-inner" spellcheck="false">--[[
     ╔══════════════════════════════════════════════╗
     ║   OBSTACLE REPLACER - FORKT ENGINE           ║
-    ║   Preview Mode | Mobile Responsive           ║
+    ║   Mobile Portrait Optimized                  ║
     ╚══════════════════════════════════════════════╝
 ]]
 
 local ScreenGui = Instance.new("ScreenGui")
--- [Simulasi Parser Komponen Utama]
--- Script di atas mendeteksi struktur UI berikut:</textarea>
-        </div>
-    </div>
+-- [Editor siap memuat komponen UI]</textarea>
+            </div>
+            
+            <div class="p-3 bg-[#0e0e13] border-t border-[#1f1f2e] md:hidden shrink-0">
+                <button onclick="runPreview()" class="w-full bg-[#7850ff] text-white py-3 rounded-xl text-xs font-bold glow-btn flex items-center justify-center gap-2 active:scale-95 transition-all">
+                    <i class="fa-solid fa-play"></i> Run & Generate Preview
+                </button>
+            </div>
+        </section>
 
-    <div id="preview-section" class="w-full md:w-1/2 h-full bg-[#09090c] flex flex-col relative hidden md:flex">
-        
-        <div class="md:hidden flex bg-[#121219] p-2 gap-2 border-b border-[#222230]">
-            <button onclick="switchTab('editor')" class="flex-1 py-2 rounded-lg bg-[#1a1a24] text-gray-400 text-xs font-semibold shadow">Editor Code</button>
-            <button onclick="switchTab('preview')" class="flex-1 py-2 rounded-lg bg-[#7850ff] text-white text-xs font-semibold shadow">Live Preview</button>
-        </div>
+        <section id="pane-preview" class="absolute inset-0 md:relative md:inset-auto w-full md:w-1/2 h-full flex flex-col items-center justify-center bg-[#07070a] p-3 md:p-6 z-0 md:z-10 transition-opacity duration-200">
+            
+            <div class="absolute inset-0 bg-[radial-gradient(#161622_1px,transparent_1px)] [background-size:20px_20px] opacity-60 pointer-events-none"></div>
 
-        <div class="flex-grow flex items-center justify-center p-4">
-            <div class="mobile-mockup">
-                <div class="notch"></div>
+            <div class="w-full max-w-[340px] h-full max-h-[620px] bg-[#0c0c10] rounded-[2.5rem] border-[6px] border-[#1f1f2e] shadow-2xl flex flex-col relative overflow-hidden shrink-0">
                 
-                <div class="w-full h-full pt-8 pb-4 px-3 flex items-center justify-center bg-[radial-gradient(#1e1e2d_1px,transparent_1px)] [background-size:16px_16px]">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-5 bg-[#1f1f2e] rounded-b-xl z-30"></div>
+
+                <div class="w-full h-full pt-8 pb-3 px-3 flex items-center justify-center relative overflow-hidden">
                     
-                    <div id="simulated-panel" class="w-full max-w-[310px] bg-[#0f0f14] rounded-xl border border-[#2d2d41] shadow-2xl flex flex-col overflow-hidden relative" style="height: 400px;">
+                    <div id="simulated-panel" class="w-full h-full max-h-[540px] bg-[#0f0f15] rounded-2xl border border-[#232338] shadow-2xl flex flex-col overflow-hidden relative">
                         
-                        <div class="h-[42px] bg-[#16161e] border-b border-[#2d2d41] flex items-center justify-between px-3 relative z-10">
-                            <span class="text-xs font-bold text-white tracking-wide">FORKT Engine</span>
-                            <div class="flex gap-1.5 items-center">
-                                <span class="text-gray-400 font-bold text-sm cursor-pointer hover:text-white px-1">−</span>
-                                <span class="text-gray-400 font-bold text-sm cursor-pointer hover:text-red-400 px-1">×</span>
+                        <div class="h-11 bg-[#14141d] border-b border-[#232338] px-3 flex items-center justify-between shrink-0">
+                            <div class="flex items-center gap-2">
+                                <div class="w-2 h-2 rounded-full bg-[#7850ff]"></div>
+                                <span class="text-xs font-bold text-white tracking-wide">FORKT Engine</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="w-6 h-6 rounded-lg bg-[#1a1a26] text-gray-400 text-xs font-bold flex items-center justify-center hover:text-white">−</button>
+                                <button class="w-6 h-6 rounded-lg bg-[#1a1a26] text-gray-400 text-xs font-bold flex items-center justify-center hover:text-red-400">×</button>
                             </div>
                         </div>
 
                         <div class="flex-grow p-3 flex flex-col gap-2.5 overflow-y-auto">
                             
-                            <span class="text-[9px] font-bold text-[#a0a0af] uppercase tracking-wider">REPLACEMENT DATA</span>
+                            <span class="text-[9px] font-bold text-[#7a7a93] uppercase tracking-wider">REPLACEMENT DATA</span>
                             
-                            <div class="bg-[#1a1a24] border border-[#2d2d41] rounded-lg p-2.5 flex flex-col justify-between h-[75px]">
-                                <span class="text-[9px] font-bold text-[#a0a0af]">SOURCE MODEL</span>
-                                <span class="text-[11px] font-bold text-white truncate">📂 Forest_Map_Pack</span>
+                            <div class="glass-panel rounded-xl p-3 flex flex-col justify-between h-20 shadow-sm">
+                                <span class="text-[9px] font-bold text-[#7a7a93]">SOURCE MODEL</span>
+                                <span class="text-xs font-bold text-white truncate">📂 Forest_Map_Pack</span>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-[9px] text-[#a0a0af]">14 items loaded</span>
-                                    <button class="bg-[#0f0f14] border border-[#2d2d41] text-[#7850ff] px-2.5 py-1 rounded text-[9px] font-bold">SELECT</button>
+                                    <span class="text-[9px] text-[#7a7a93]">14 objects loaded</span>
+                                    <span class="text-[9px] font-bold text-[#7850ff] bg-[#7850ff]/10 px-2.5 py-1 rounded-lg border border-[#7850ff]/20">SELECT</span>
                                 </div>
                             </div>
 
-                            <div class="bg-[#1a1a24] border border-[#2d2d41] rounded-lg p-2.5 flex flex-col justify-between h-[75px]">
-                                <span class="text-[9px] font-bold text-[#a0a0af]">TARGET POOL</span>
-                                <span class="text-[11px] font-bold text-white truncate">📦 SciFi_Wall_Asset</span>
+                            <div class="glass-panel rounded-xl p-3 flex flex-col justify-between h-20 shadow-sm">
+                                <span class="text-[9px] font-bold text-[#7a7a93]">TARGET POOL</span>
+                                <span class="text-xs font-bold text-white truncate">📦 SciFi_Wall_Asset</span>
                                 <div class="flex justify-between items-center">
-                                    <span class="text-[9px] text-[#a0a0af]">5 variants loaded</span>
-                                    <button class="bg-[#0f0f14] border border-[#2d2d41] text-[#7850ff] px-2.5 py-1 rounded text-[9px] font-bold">SELECT</button>
+                                    <span class="text-[9px] text-[#7a7a93]">5 variants loaded</span>
+                                    <span class="text-[9px] font-bold text-[#7850ff] bg-[#7850ff]/10 px-2.5 py-1 rounded-lg border border-[#7850ff]/20">SELECT</span>
                                 </div>
                             </div>
 
-                            <span class="text-[9px] font-bold text-[#a0a0af] uppercase tracking-wider mt-1">EXECUTION</span>
+                            <span class="text-[9px] font-bold text-[#7a7a93] uppercase tracking-wider mt-1">EXECUTION</span>
 
-                            <button class="w-full bg-[#7850ff] hover:bg-[#8c64ff] text-white rounded-lg py-2.5 text-[10px] font-bold shadow-md shadow-[#7850ff]/20">
+                            <button class="w-full bg-[#7850ff] hover:bg-[#8c64ff] text-white py-3 rounded-xl text-xs font-bold glow-btn active:scale-98 transition-all">
                                 REPLACE 14 OBJECTS
                             </button>
 
-                            <div class="text-center">
-                                <span class="text-[9px] text-[#a0a0af] hover:text-white cursor-pointer underline">Clear All Selection</span>
+                            <div class="text-center pb-2">
+                                <span class="text-[10px] text-[#7a7a93] hover:text-white cursor-pointer underline underline-offset-4">Clear All Selection</span>
                             </div>
                         </div>
 
-                        <div class="h-[26px] bg-[#0f0f14] border-t border-[#2d2d41] px-3 flex items-center gap-2">
-                            <span class="text-[#41dc87] text-[8px]">●</span>
-                            <span class="text-[9px] text-[#a0a0af] truncate">Source folder loaded successfully.</span>
+                        <div class="h-7 bg-[#121219] border-t border-[#232338] px-3 flex items-center gap-2 shrink-0">
+                            <span class="text-[#41dc87] text-[8px] animate-pulse">●</span>
+                            <span class="text-[9px] text-[#7a7a93] truncate">Authenticated successfully. Ready.</span>
                         </div>
 
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <script>
-        function switchTab(tab) {
-            const editor = document.getElementById('editor-section');
-            const preview = document.getElementById('preview-section');
-            
-            if(tab === 'editor') {
-                editor.classList.remove('hidden');
-                editor.classList.add('flex');
-                preview.classList.add('hidden');
-                preview.classList.remove('flex');
+        function switchMobileTab(tab) {
+            const paneEditor = document.getElementById('pane-editor');
+            const panePreview = document.getElementById('pane-preview');
+            const btnEditor = document.getElementById('btn-tab-editor');
+            const btnPreview = document.getElementById('btn-tab-preview');
+
+            if (tab === 'editor') {
+                paneEditor.style.zIndex = '20';
+                panePreview.style.zIndex = '10';
+                btnEditor.className = "px-3 py-1.5 rounded-lg text-[10px] font-bold bg-[#7850ff] text-white transition-all shadow-sm";
+                btnPreview.className = "px-3 py-1.5 rounded-lg text-[10px] font-bold text-[#8a8a9e] transition-all";
             } else {
-                editor.classList.add('hidden');
-                editor.classList.remove('flex');
-                preview.classList.remove('hidden');
-                preview.classList.add('flex');
+                paneEditor.style.zIndex = '10';
+                panePreview.style.zIndex = '20';
+                btnPreview.className = "px-3 py-1.5 rounded-lg text-[10px] font-bold bg-[#7850ff] text-white transition-all shadow-sm";
+                btnEditor.className = "px-3 py-1.5 rounded-lg text-[10px] font-bold text-[#8a8a9e] transition-all";
             }
         }
 
-        function parseAndPreview() {
-            const codeInput = document.getElementById('luau-code').value;
-            if(window.innerWidth < 768) {
-                switchTab('preview');
+        function runPreview() {
+            // Otomatis pindah ke tab preview jika diakses via perangkat mobile portrait
+            if (window.innerWidth < 768) {
+                switchMobileTab('preview');
             }
-            // Simulasi pembaruan interaktif berdasarkan teks yang dimasukkan
+            
+            // Efek animasi feedback saat tombol Run ditekan
             const panel = document.getElementById('simulated-panel');
-            panel.style.transform = 'scale(0.98)';
-            setTimeout(() => { panel.style.transform = 'scale(1)'; }, 150);
+            panel.style.transform = 'scale(0.97)';
+            setTimeout(() => {
+                panel.style.transform = 'scale(1)';
+            }, 180);
         }
 
-        // Muat isi default dari script Anda ke text area
-        window.onload = function() {
-            // Text area sudah diisi template di atas
-        }
+        // Penyesuaian otomatis layout saat ukuran jendela berubah (Resize Handler)
+        window.addEventListener('resize', () => {
+            if (window.innerWidth >= 768) {
+                document.getElementById('pane-editor').style.zIndex = '10';
+                document.getElementById('pane-preview').style.zIndex = '10';
+            }
+        });
     </script>
 </body>
 </html>
