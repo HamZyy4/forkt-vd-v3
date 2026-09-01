@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Luau UI Previewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a; /* Slate 900 */
+            color: #f8fafc;
+        }
+
+        .code-editor {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #1e293b;
+            resize: none;
+            scrollbar-width: thin;
+            scrollbar-color: #475569 transparent;
+        }
+
+        /* Simulasi Layar Mobile Portrait */
+        .mobile-mockup {
+            width: 100%;
+            max-width: 375px;
+            aspect-ratio: 9/16;
+            background-image: url('https://www.transparenttextures.com/patterns/cubes.png'); /* Subtle background */
+            background-color: #e2e8f0;
+            margin: 0 auto;
+            border-radius: 2rem;
+            border: 8px solid #334155;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notch {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 120px;
+            height: 25px;
+            background-color: #334155;
+            border-bottom-left-radius: 12px;
+            border-bottom-right-radius: 12px;
+            z-index: 50;
+        }
+
+        /* Style untuk Render UI dari Luau */
+        .rendered-element {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row">
+
+    <div id="editor-section" class="w-full md:w-1/2 h-full flex flex-col border-r border-slate-700">
+        <div class="p-4 bg-slate-800 flex justify-between items-center border-b border-slate-700 shadow-md">
+            <h1 class="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                <i class="fa-solid fa-code mr-2"></i>Luau UI Preview
+            </h1>
+            <button onclick="runLuauCode()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-semibold shadow-lg shadow-blue-500/30 transition-all active:scale-95">
+                <i class="fa-solid fa-play mr-2"></i>Run
+            </button>
+        </div>
+        
+        <div class="flex-grow p-4 bg-slate-900 relative">
+            <textarea id="luau-code" class="code-editor w-full h-full p-4 text-sm text-blue-300 rounded-xl outline-none border border-slate-700 focus:border-blue-500 transition-colors shadow-inner" spellcheck="false" placeholder="-- Tulis script UI Luau di sini...&#10;local ScreenGui = Instance.new('ScreenGui')&#10;local Button = Instance.new('TextButton')&#10;&#10;Button.Text = 'Hello Kito!'&#10;Button.BackgroundColor3 = Color3.fromRGB(0, 120, 255)&#10;Button.Size = UDim2.new(0, 200, 0, 50)&#10;Button.Position = UDim2.new(0.5, -100, 0.5, -25)"></textarea>
+        </div>
+    </div>
+
+    <div id="preview-section" class="w-full md:w-1/2 h-full bg-slate-950 flex flex-col relative hidden md:flex">
+        
+        <div class="md:hidden flex bg-slate-800 p-2 gap-2 border-b border-slate-700">
+            <button onclick="switchTab('editor')" class="flex-1 py-2 rounded bg-slate-700 text-white font-semibold shadow">Editor</button>
+            <button onclick="switchTab('preview')" class="flex-1 py-2 rounded bg-blue-600 text-white font-semibold shadow">Preview</button>
+        </div>
+
+        <div class="flex-grow flex items-center justify-center p-6">
+            <div class="mobile-mockup" id="device-screen">
+                <div class="notch"></div>
+                <div id="render-area" class="w-full h-full relative bg-gray-100">
+                    </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Logika Tab Mobile
+        function switchTab(tab) {
+            const editor = document.getElementById('editor-section');
+            const preview = document.getElementById('preview-section');
+            
+            if(tab === 'editor') {
+                editor.classList.remove('hidden');
+                editor.classList.add('flex');
+                preview.classList.add('hidden');
+                preview.classList.remove('flex');
+            } else {
+                editor.classList.add('hidden');
+                editor.classList.remove('flex');
+                preview.classList.remove('hidden');
+                preview.classList.add('flex');
+            }
+        }
+
+        // --- LUAU TO HTML PARSER (Basic Simulator) ---
+        function runLuauCode() {
+            const code = document.getElementById('luau-code').value;
+            const renderArea = document.getElementById('render-area');
+            
+            // Bersihkan preview sebelumnya
+            renderArea.innerHTML = ''; 
+
+            // Pindah ke tab preview otomatis (untuk mobile)
+            if(window.innerWidth < 768) {
+                switchTab('preview');
+            }
+
+            const lines = code.split('\n');
+            let elements = {};
+            let currentVar = "";
+
+            // Parser sederhana berbasis baris (Line-by-line Regex)
+            lines.forEach(line => {
+                let text = line.trim();
+                
+                // Deteksi Instance.new()
+                const instanceMatch = text.match(/local\s+(\w+)\s*=\s*Instance\.new\(['"](\w+)['"]\)/);
+                if (instanceMatch) {
+                    const varName = instanceMatch[1];
+                    const type = instanceMatch[2];
+                    
+                    const el = document.createElement('div');
+                    el.className = 'rendered-element shadow-sm';
+                    
+                    // Default style berdasarkan tipe
+                    if (type === 'TextButton') {
+                        el.style.backgroundColor = '#e0e0e0';
+                        el.style.color = '#000';
+                        el.style.borderRadius = '8px';
+                        el.style.cursor = 'pointer';
+                        el.style.fontWeight = 'bold';
+                    } else if (type === 'Frame') {
+                        el.style.backgroundColor = '#ffffff';
+                        el.style.border = '1px solid #ccc';
+                    } else if (type === 'TextLabel') {
+                        el.style.backgroundColor = 'transparent';
+                        el.style.color = '#000';
+                    }
+                    
+                    // Tambahkan efek interaktif jika button
+                    if(type === 'TextButton' || type === 'ImageButton') {
+                        el.onmousedown = () => el.style.transform = 'scale(0.95)';
+                        el.onmouseup = () => el.style.transform = 'scale(1)';
+                    }
+
+                    elements[varName] = el;
+                    renderArea.appendChild(el);
+                    return;
+                }
+
+                // Deteksi Properti (cth: Button.Text = "Click Me")
+                const propMatch = text.match(/(\w+)\.(\w+)\s*=\s*(.+)/);
+                if (propMatch) {
+                    const varName = propMatch[1];
+                    const prop = propMatch[2];
+                    const value = propMatch[3];
+
+                    if (elements[varName]) {
+                        applyProperty(elements[varName], prop, value);
+                    }
+                }
+            });
+        }
+
+        // Fungsi penerjemah Properti Luau ke CSS
+        function applyProperty(el, prop, value) {
+            // Hapus kutipan jika ada
+            const cleanVal = value.replace(/['"]/g, '').trim();
+
+            switch (prop) {
+                case 'Text':
+                    el.innerText = cleanVal;
+                    break;
+                case 'BackgroundColor3':
+                    // Regex untuk menangkap Color3.fromRGB(r, g, b)
+                    const colorMatch = value.match(/Color3\.fromRGB\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/);
+                    if (colorMatch) {
+                        el.style.backgroundColor = `rgb(${colorMatch[1]}, ${colorMatch[2]}, ${colorMatch[3]})`;
+                    }
+                    break;
+                case 'Size':
+                    // Regex untuk menangkap UDim2.new(XScale, XOff, YScale, YOff)
+                    const sizeMatch = value.match(/UDim2\.new\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/);
+                    if (sizeMatch) {
+                        const xs = parseFloat(sizeMatch[1]) * 100;
+                        const xo = parseFloat(sizeMatch[2]);
+                        const ys = parseFloat(sizeMatch[3]) * 100;
+                        const yo = parseFloat(sizeMatch[4]);
+                        el.style.width = `calc(${xs}% + ${xo}px)`;
+                        el.style.height = `calc(${ys}% + ${yo}px)`;
+                    }
+                    break;
+                case 'Position':
+                    const posMatch = value.match(/UDim2\.new\(\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\)/);
+                    if (posMatch) {
+                        const xs = parseFloat(posMatch[1]) * 100;
+                        const xo = parseFloat(posMatch[2]);
+                        const ys = parseFloat(posMatch[3]) * 100;
+                        const yo = parseFloat(posMatch[4]);
+                        el.style.left = `calc(${xs}% + ${xo}px)`;
+                        el.style.top = `calc(${ys}% + ${yo}px)`;
+                    }
+                    break;
+                case 'Visible':
+                    el.style.display = (cleanVal === 'false') ? 'none' : 'flex';
+                    break;
+            }
+        }
+
+        // Tampilkan kode bawaan saat pertama kali dimuat
+        window.onload = runLuauCode;
+    </script>
+</body>
+</html>
